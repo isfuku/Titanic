@@ -24,11 +24,9 @@ titanic <- titanic[, which(names(titanic) %in% c("PassengerId", "Survived", "Pcl
                                                  "iTitles"))]
 
 ### splitting the dataset in train and cv ----
-set.seed(144)
+set.seed(123321)
 trainf <- titanic[!is.na(titanic$Survived), ]
 train_examples <- sample(1:nrow(trainf), round(nrow(trainf)*0.7))
-
-# choose p ----
 y = trainf$Survived %>% as.character %>% strtoi()
 X = trainf[, which(names(trainf) %in% c("Pclass", "Sex", 
                                         "Age", "Embarked",
@@ -36,86 +34,68 @@ X = trainf[, which(names(trainf) %in% c("Pclass", "Sex",
                                         "iTitles"))]
 X <- as.matrix(X)
 
-
-theta_init = rep(0, ncol(X) + 1)
-theta = optim(par = theta_init, fn = regLogitCost, gr = regLogitGrad, 
-              lambda = 0, X = X, y = y)
-theta$par
-theta$value
-
-lambda = 1
-p_space <- 1:10
+# choose p ----
+lambda = 0.8
+p_space <- 1:17
 cv_cost <- as.data.frame(matrix(p_space, nrow = 1))
 train_cost <- as.data.frame(matrix(p_space, nrow = 1))
-for (random_trial in 1:10){
+for (random_trial in 1:50){
         train_examples <- sample(1:nrow(trainf), round(nrow(trainf)*0.7))
         train_cost_trial = c()
         cv_cost_trial = c()
         for(p in p_space){
-                X <- polFeatures(X, p = p)
-                X <- normalize(X)
-                Xcv <- X[-train_examples, ]
+                Xp <- polFeatures(X, p = p)
+                Xp <- normalize(Xp)
+                Xcv <- Xp[-train_examples, ]
                 ycv <- y[-train_examples]
-                Xtrain <- X[train_examples, ]
+                Xtrain <- Xp[train_examples, ]
                 ytrain <- y[train_examples]
-                theta = optim(rep(0, ncol(X) + 1), fn = regLogitCost, gr = regLogitGrad, 
-                              lambda = lambda, X = X, y = y)
-                train_cost_trial[i] <- regLogitCost(theta$par, lambda = 0, X = X, y = y)
-                cv_cost_trial[i] <- regLogitCost(theta$par, lambda = 0, X = Xcv, y = ycv)
+                theta = optim(rep(0, ncol(Xtrain) + 1), fn = regLogitCost, gr = regLogitGrad, 
+                              lambda = lambda, X = Xtrain, y = ytrain,
+                              method = "BFGS")
+                train_cost_trial[p] <- regLogitCost(theta$par, lambda = 0, 
+                                                    X = Xtrain, y = ytrain)
+                cv_cost_trial[p] <- regLogitCost(theta$par, lambda = 0, X = Xcv, y = ycv)
         }
         cv_cost[random_trial, ] <- cv_cost_trial
         train_cost[random_trial, ] <- train_cost_trial
 }
 
-cv_cost_mean <- rowMeans(cv_cost)
-train_cost_mean <- rowMeas(train_cost)
+cv_cost_mean <- colMeans(cv_cost)
+train_cost_mean <- colMeans(train_cost)
 
 plot(x = p_space, y = cv_cost_mean, col = 'blue', type = 'l', 
      ylim = c(min(union(cv_cost_mean, train_cost_mean)), 
-              max(union(cv_cost_mean, train_cost_mean))), main = paste0("p = ", p))
-lines(x = p_space, y = train_cost, col = 'green')
-legend(x = max(lambda_space) - max(lambda_space)/6,
-       y =  max(union(cv_cost, train_cost)) - max(union(cv_cost, train_cost))/100,
+              max(union(cv_cost_mean, train_cost_mean))), 
+     main = paste0("p = ", p), ylab = "MSE")
+lines(x = p_space, y = train_cost_mean, col = 'green')
+legend(x = max(p_space) - max(p_space)/6,
+       y =  max(union(cv_cost_mean, train_cost_mean)) - 
+               max(union(cv_cost_mean, train_cost_mean))/100,
        legend = c("train", "cv"), col = c("green", "blue"), lty = 1)
 
-optimal_lambda = lambda_space[which(cv_cost == min(cv_cost))]
-print(paste0("optimal lambda = ", optimal_lambda))
-
-# p = 4, see lambda ----
-y = trainf$Survived %>% as.character %>% strtoi()
-X = trainf[, which(names(trainf) %in% c("Pclass", "Sex", 
-                                        "Age", "Embarked",
-                                        "Family_size", "logFare", "ticket_t", 
-                                        "iTitles"))]
-X <- as.matrix(X)
-p = 4
-X <- polFeatures(X, p = p)
-X <- normalize(X)
-Xcv <- X[-train_examples, ]
+# p = 17, see lambda ----
+p = 17
+Xp <- polFeatures(X, p = p)
+Xp <- normalize(Xp)
+Xcv <- Xp[-train_examples, ]
 ycv <- y[-train_examples]
-X <- X[train_examples, ]
-y <- y[train_examples]
+Xtrain <- Xp[train_examples, ]
+ytrain <- y[train_examples]
 
-theta_init = rep(0, ncol(X) + 1)
-theta = optim(par = theta_init, fn = regLogitCost, gr = regLogitGrad, 
-              lambda = 0, X = X, y = y)
-theta$par
-theta$value
-
-lambda_space <- c(0, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6, 9, 14)
-p_space <- 1:10
+lambda_space <- c(0, 0.001, 0.003, 0.01, 0.03, 0.1, 0.3, 1, 3, 10)
 cv_cost <- c()
 train_cost <- c()
 for(i in 1:length(lambda_space)){
-        theta_init = rep(0, ncol(X) + 1)
+        theta_init = rep(0, ncol(Xtrain) + 1)
         theta = optim(par = theta_init, fn = regLogitCost, gr = regLogitGrad, 
-                      lambda = lambda_space[i], X = X, y = y)
-        train_cost[i] <- regLogitCost(theta$par, lambda = 0, X = X, y = y)
+                      lambda = lambda_space[i], X = Xtrain, y = ytrain,
+                      method = "BFGS")
+        train_cost[i] <- regLogitCost(theta$par, lambda = 0, X = Xtrain, y = ytrain)
         cv_cost[i] <- regLogitCost(theta$par, lambda = 0, X = Xcv, y = ycv)
-        print(theta$par)
 }
 
-plot(x = lambda_space, y = cv_cost, col = 'blue', type = 'l', 
+plot(x = lambda_space, y = cv_cost, col = 'blue', type = 'l', ylab = "MSE",
      ylim = c(min(union(cv_cost, train_cost)), 
               max(union(cv_cost, train_cost))), main = paste0("p = ", p))
 lines(x = lambda_space, y = train_cost, col = 'green')
@@ -128,19 +108,19 @@ print(paste0("optimal lambda = ", optimal_lambda))
 
 
 # learning curves ----
-m_space = seq(nrow(X)/10, nrow(X), 10)
+m_space = c(17, 30, seq(nrow(Xtrain)/10, nrow(Xtrain), 10)) %>% round()
 cv_cost <- c()
 train_cost <- c()
 for(i in 1:length(m_space)){
-        theta_init = rep(0, ncol(X) + 1)
+        m_sample = sample(1:nrow(Xtrain), m_space[i])
+        theta_init = rep(0, ncol(Xtrain) + 1)
+        Xm = Xtrain[m_sample, ]
+        ym = ytrain[m_sample]
         theta = optim(par = theta_init, fn = regLogitCost, gr = regLogitGrad, 
-                      lambda = optimal_lambda, X = X, y = y)
-        m_sample = sample(1:nrow(X), m_space[i])
-        Xm = X[m_sample, ]
-        ym = y[m_sample]
+                      lambda = optimal_lambda, X = Xm, y = ym,
+                      method = "BFGS")
         train_cost[i] <- regLogitCost(theta$par, lambda = 0, X = Xm, y = ym)
         cv_cost[i] <- regLogitCost(theta$par, lambda = 0, X = Xcv, y = ycv)
-        print(theta$par)
 }
 
 plot(x = m_space, y = cv_cost, col = 'blue', type = 'l', 
@@ -151,24 +131,14 @@ legend(x = max(m_space) - max(m_space)/6,
        y =  max(union(cv_cost, train_cost)) - max(union(cv_cost, train_cost))/100,
        legend = c("train", "cv"), col = c("green", "blue"), lty = 1)
 
-optimal_lambda = lambda_space[which(cv_cost == min(cv_cost))]
-print(paste0("optimal lambda = ", optimal_lambda))
-
-
 # one fit ----
-y = trainf$Survived %>% as.character %>% strtoi()
-X = trainf[, which(names(trainf) %in% c("Pclass", "Sex", 
-                                        "Age", "Embarked",
-                                        "Family_size", "logFare", "ticket_t", 
-                                        "iTitles"))]
-X <- as.matrix(X)
-p = 4
+p = 17
 X <- polFeatures(X, p = p)
 X <- normalize(X)
 
 theta_init = rep(0, ncol(X) + 1)
 theta = optim(par = theta_init, fn = regLogitCost, gr = regLogitGrad, 
-              lambda = 0.8, X = X, y = y)
+              lambda = optimal_lambda[1], X = X, y = y, method = "BFGS")
 theta$par
 theta$value
 
@@ -177,9 +147,8 @@ test <- titanic[is.na(titanic$Survived), which(names(trainf) %in% c("Pclass", "S
                                              "Family_size", "logFare", "ticket_t", 
                                              "iTitles"))]
 test <- as.matrix(test)
-p = 4
 test <- polFeatures(test, p)
-test <- normalize(test)
+test <- normalize(test) # na verdade deveria normalizar as variaveis todas juntas...
 test <- cbind(test, rep(1, nrow(test)))
 y_pred <- sigmoid(test%*%theta$par)
 

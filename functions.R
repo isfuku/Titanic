@@ -132,6 +132,7 @@ regLogitGrad <- function(theta, lambda, X, y){
         X <- cbind(X, rep(1, nrow(X)))
         ## number of obs and features
         n = nrow(X)
+        k = ncol(X)
         
         ## compute gradient
         h = sigmoid(X%*%theta)
